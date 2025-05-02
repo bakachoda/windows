@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+        align-items: center;
+        justify-content: center;
+        font-family: sans-serif;
+      }
+      #container {
+        display: flex;
+        width: 100%;
+        height: 100%;
+      }
+      #image-container {
+        flex: 0 0 80%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+      }
+      #latest-image {
+        max-height: 100%;
+        max-width: 100%;
+        display: none;
+        object-fit: contain;
+      }
+      #loading-spinner {
+        display: none;
+        position: absolute;
+        width: 50px;
+        height: 50px;
+        border: 5px solid rgba(0, 0, 0, 0.1);
+        border-top: 5px solid #000;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      #controls {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      #message {
+        display: none;
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.6);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="message"></div>
+    <div id="container">
+      <div id="image-container">
+        <div id="loading-spinner"></div>
+        <img id="latest-image" src="" alt="Error loading image" />
+      </div>
+      <div id="controls">
+        <button id="backward" disabled>⬅️</button>
+        <button id="forward" disabled>➡️</button>
+        <button id="go-to-latest" disabled>🔄</button>
+      </div>
+    </div>
+
+    <script>
+      let jpgFiles = [];
+      let currentIndex = 0;
+      let pollingInterval = null;
+
+      async function fetchImages(initial = false) {
+        const url = "https://api.github.com/repos/bakachoda/windows/contents/";
+        const spinner = document.getElementById("loading-spinner");
+        spinner.style.display = "block";
+
+        try {
+          const response = await fetch(url, {
+            headers: {
+              Accept: "application/vnd.github.v3+json",
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error("Error fetching images from the repository.");
+          }
+
+          const files = await response.json();
+          const newJpgFiles = files
+            .filter((file) => file.name.endsWith(".jpg"))
+            .sort((a, b) => b.name.localeCompare(a.name));
+
+          if (newJpgFiles.length === 0) {
+            showMessage("No screenshots found.");
+            return;
+          }
+
+          const hasNew =
+            jpgFiles.length === 0 ||
+            newJpgFiles[0].name !== jpgFiles[0].name ||
+            newJpgFiles.length !== jpgFiles.length;
+
+          if (hasNew) {
+            jpgFiles = newJpgFiles;
+
+            if (currentIndex === 0) {
+              displayImage(0);
+            }
+            updateControls(currentIndex);
+          }
+        } catch (error) {
+          showMessage(error.message);
+        } finally {
+          spinner.style.display = "none";
+        }
+      }
+
+      function displayImage(index) {
+        const imageElement = document.getElementById("latest-image");
+        const imageUrl = jpgFiles[index]?.download_url;
+
+        if (imageUrl) {
+          imageElement.src = imageUrl;
+          imageElement.style.display = "block";
+        }
+
+        updateControls(index);
+      }
+
+      function updateControls(index) {
+        document.getElementById("backward").disabled =
+          index >= jpgFiles.length - 1;
+        document.getElementById("forward").disabled = index <= 0;
+        document.getElementById("go-to-latest").disabled = index === 0;
+      }
+
+      function showMessage(message) {
+        const messageBox = document.getElementById("message");
+        messageBox.textContent = message;
+        messageBox.style.display = "block";
+      }
+
+      document.getElementById("backward").addEventListener("click", () => {
+        if (currentIndex < jpgFiles.length - 1) {
+          currentIndex++;
+          displayImage(currentIndex);
+        }
+      });
+
+      document.getElementById("forward").addEventListener("click", () => {
+        if (currentIndex > 0) {
+          currentIndex--;
+          displayImage(currentIndex);
+        }
+      });
+
+      document.getElementById("go-to-latest").addEventListener("click", () => {
+        currentIndex = 0;
+        displayImage(currentIndex);
+      });
+
+      window.onload = () => {
+        fetchImages(true);
+        pollingInterval = setInterval(() => fetchImages(false), 60000);
+      };
+    </script>
+  </body>
+</html>
