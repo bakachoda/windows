@@ -1,0 +1,45 @@
+name: Delete Screenshot
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  delete-jpgs-and-reset-history:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Delete all JPG files
+        run: |
+          find . -type f -iname "*.jpg" -exec rm -f {} \;
+
+      - name: Reset commit history and commit changes
+        run: |
+          # Set Git user name and email
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
+          # Get the current date and time for the commit message (only time)
+          COMMIT_MSG="$(date +'%Y-%m-%d %H:%M:%S')"
+
+          # Create a new branch to reset history
+          git checkout --orphan latest-commit
+
+          # Add all changes (deleted .jpg files) and make the commit
+          git add -A
+          git commit -m "$COMMIT_MSG"
+
+          # Force push to overwrite history on the main branch (or replace with your branch name)
+          git push --force origin latest-commit:main
+
+          # Checkout back to the main branch to delete the temporary branch
+          git checkout main
+
+          # Delete the temporary branch after pushing
+          git branch -D latest-commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
